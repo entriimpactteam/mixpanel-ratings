@@ -172,7 +172,6 @@ def process_and_generate(vertical_df, category_df, course_df):
                 last = match['Total Ratings'].values[0] if not match.empty else 0
                 change = row['Total Ratings'] - last
                 changes.append(change)
-                # Safely handle NaN (from #DIV/0! in weighted averages) by using 0 for display
                 total_ratings = int(row['Total Ratings']) if not pd.isna(row['Total Ratings']) else 0
                 labels.append(f"{row['Category']} ({total_ratings})")
         else:
@@ -221,39 +220,43 @@ def process_and_generate(vertical_df, category_df, course_df):
 
     def make_html_summary():
         output = []
-        for v_idx, v_row in vertical_data_this.iterrows():
-            vertical = v_row['Vertical']
-            vertical_norm = v_row['Vertical_norm']
-            # Calculate total_this using sum with skipna to handle NaN
-            total_this = v_row[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
-                               'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
-                               'SUM of No: Of live record ratings']].sum(skipna=True)
+        # Aggregate data by unique verticals
+        vertical_groups_this = category_data_this.groupby('Vertical_norm')
+        vertical_groups_last = category_data_last.groupby('Vertical_norm')
+        
+        for idx, (vertical_norm, group_this) in enumerate(vertical_groups_this, 1):
+            vertical = group_this['Vertical'].iloc[0]  # Get the first vertical name as representative
+            # Calculate total_this using sum with skipna
+            total_this = group_this[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                                   'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                                   'SUM of No: Of live record ratings']].sum().sum(skipna=True)
             total_this = int(total_this) if not pd.isna(total_this) else 0
-            v_row_last = vertical_data_last[vertical_data_last['Vertical_norm'] == vertical_norm]
-            if not v_row_last.empty:
-                v_row_last = v_row_last.iloc[0]
-                total_last = v_row_last[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
-                                       'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
-                                       'SUM of No: Of live record ratings']].sum(skipna=True)
-                total_last = int(total_last) if not pd.isna(total_last) else 0
-            else:
-                total_last = 0
+            
+            # Match last period data
+            group_last = vertical_groups_last.get_group(vertical_norm) if vertical_norm in vertical_groups_last.groups else pd.DataFrame()
+            total_last = group_last[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                                   'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                                   'SUM of No: Of live record ratings']].sum().sum(skipna=True)
+            total_last = int(total_last) if not pd.isna(total_last) else 0
+            
             change = total_this - total_last
             direction = "Increased by" if change > 0 else "Decreased by" if change < 0 else "No Change"
-            output.append(f'<h2>Vertical {v_idx+1} - <b>{vertical}</b></h2>')
+            
+            output.append(f'<h2>Vertical {idx} - {vertical} Total</h2>')
             output.append(f'<p>{direction} <b>{change}</b> ratings (<b>{total_this}</b> this week).</p>')
-            v_categories_this = category_data_this[category_data_this['Vertical_norm'] == vertical_norm]
+            
+            # Positive and Negative Contributors
             pos_cats = []
             neg_cats = []
-            for _, c_row in v_categories_this.iterrows():
+            for _, c_row in group_this.iterrows():
                 category = c_row['Category']
                 category_norm = c_row['Category_norm']
-                # Calculate category_total_this using sum with skipna to handle NaN
                 category_total_this = c_row[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
                                            'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
                                            'SUM of No: Of live record ratings']].sum(skipna=True)
                 category_total_this = int(category_total_this) if not pd.isna(category_total_this) else 0
-                c_row_last = category_data_last[(category_data_last['Vertical_norm'] == vertical_norm) & (category_data_last['Category_norm'] == category_norm)]
+                c_row_last = category_data_last[(category_data_last['Vertical_norm'] == vertical_norm) & 
+                                              (category_data_last['Category_norm'] == category_norm)]
                 if not c_row_last.empty:
                     c_row_last = c_row_last.iloc[0]
                     category_total_last = c_row_last[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
@@ -267,7 +270,8 @@ def process_and_generate(vertical_df, category_df, course_df):
                 cat_change_text = f"+{cat_change} ratings" if cat_change > 0 else f"{cat_change} ratings" if cat_change < 0 else "0 ratings"
                 cat_rated = c_row['AVERAGE of % of rated live sessions']
                 cat_below_3_5 = c_row['AVERAGE of % of live sessions rated below 3.5']
-                flagged = flagged_courses[(flagged_courses['Vertical_norm'] == vertical_norm) & (flagged_courses['Category_norm'] == category_norm)]
+                flagged = flagged_courses[(flagged_courses['Vertical_norm'] == vertical_norm) & 
+                                        (flagged_courses['Category_norm'] == category_norm)]
                 flagged_html = ''
                 if not flagged.empty:
                     table = ['<table border="1" cellpadding="0" cellspacing="0"><tr><th>Flagged Courses</th><th>Flags</th></tr>']
@@ -279,7 +283,7 @@ def process_and_generate(vertical_df, category_df, course_df):
                     table.append('</table>')
                     flagged_html = ''.join(table)
                 cat_block = (
-                    f'<h3><b>{category}</b>: {cat_direction} {cat_change_text} (<b>{category_total_this}</b> this week)</h3>'
+                    f'<h3><b>{category} Total</b>: {cat_direction} {cat_change_text} (<b>{category_total_this}</b> this week)</h3>'
                     f'<p>⚠️ <b>Sessions Rated:</b> {cat_rated:.2f}% 🚩 <b>Sessions with <3.5 Rating:</b> {cat_below_3_5:.2f}%</p>'
                     + flagged_html
                 )
@@ -287,12 +291,14 @@ def process_and_generate(vertical_df, category_df, course_df):
                     pos_cats.append(cat_block)
                 elif cat_change < 0 and flagged_html:
                     neg_cats.append(cat_block)
+            
             if pos_cats:
                 output.append('<h3>Positive Contributors</h3>')
                 output.extend(pos_cats)
             if neg_cats:
                 output.append('<h3>Negative Contributors</h3>')
                 output.extend(neg_cats)
+        
         return '\n'.join(output)
 
     html_summary_output = make_html_summary()
