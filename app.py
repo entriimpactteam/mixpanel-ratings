@@ -224,11 +224,18 @@ def process_and_generate(vertical_df, category_df, course_df):
         for v_idx, v_row in vertical_data_this.iterrows():
             vertical = v_row['Vertical']
             vertical_norm = v_row['Vertical_norm']
-            total_this = int(v_row['SUM of No: of live ratings'] + v_row['SUM of No: of mentor ratings'] + v_row['SUM of No: of Course Ratings'] + v_row['SUM of No: of VOD Ratings'] + v_row['SUM of No: Of live record ratings'])
+            # Calculate total_this using sum with skipna to handle NaN
+            total_this = v_row[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                               'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                               'SUM of No: Of live record ratings']].sum(skipna=True)
+            total_this = int(total_this) if not pd.isna(total_this) else 0
             v_row_last = vertical_data_last[vertical_data_last['Vertical_norm'] == vertical_norm]
             if not v_row_last.empty:
                 v_row_last = v_row_last.iloc[0]
-                total_last = int(v_row_last['SUM of No: of live ratings'] + v_row_last['SUM of No: of mentor ratings'] + v_row_last['SUM of No: of Course Ratings'] + v_row_last['SUM of No: of VOD Ratings'] + v_row_last['SUM of No: Of live record ratings'])
+                total_last = v_row_last[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                                       'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                                       'SUM of No: Of live record ratings']].sum(skipna=True)
+                total_last = int(total_last) if not pd.isna(total_last) else 0
             else:
                 total_last = 0
             change = total_this - total_last
@@ -241,11 +248,18 @@ def process_and_generate(vertical_df, category_df, course_df):
             for _, c_row in v_categories_this.iterrows():
                 category = c_row['Category']
                 category_norm = c_row['Category_norm']
-                category_total_this = int(c_row['SUM of No: of live ratings'] + c_row['SUM of No: of mentor ratings'] + c_row['SUM of No: of Course Ratings'] + c_row['SUM of No: of VOD Ratings'] + c_row['SUM of No: Of live record ratings'])
+                # Calculate category_total_this using sum with skipna to handle NaN
+                category_total_this = c_row[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                                           'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                                           'SUM of No: Of live record ratings']].sum(skipna=True)
+                category_total_this = int(category_total_this) if not pd.isna(category_total_this) else 0
                 c_row_last = category_data_last[(category_data_last['Vertical_norm'] == vertical_norm) & (category_data_last['Category_norm'] == category_norm)]
                 if not c_row_last.empty:
                     c_row_last = c_row_last.iloc[0]
-                    category_total_last = int(c_row_last['SUM of No: of live ratings'] + c_row_last['SUM of No: of mentor ratings'] + c_row_last['SUM of No: of Course Ratings'] + c_row_last['SUM of No: of VOD Ratings'] + c_row_last['SUM of No: Of live record ratings'])
+                    category_total_last = c_row_last[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                                                    'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                                                    'SUM of No: Of live record ratings']].sum(skipna=True)
+                    category_total_last = int(category_total_last) if not pd.isna(category_total_last) else 0
                 else:
                     category_total_last = 0
                 cat_change = category_total_this - category_total_last
