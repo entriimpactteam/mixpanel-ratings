@@ -152,14 +152,18 @@ def process_and_generate(vertical_df, category_df, course_df):
     flagged_courses['Category_norm'] = flagged_courses['Category'].apply(normalize_category_name)
     course_data_this['Category_norm'] = course_data_this['Category'].apply(normalize_category_name)
 
-    # Generate charts
     def plot_bar(df_this, df_last, label_col, title, filename):
         if df_this.empty:
             return
         df_this = df_this.copy()
         df_last = df_last.copy()
-        df_this['Total Ratings'] = df_this['SUM of No: of live ratings'] + df_this['SUM of No: of mentor ratings'] + df_this['SUM of No: of Course Ratings'] + df_this['SUM of No: of VOD Ratings'] + df_this['SUM of No: Of live record ratings']
-        df_last['Total Ratings'] = df_last['SUM of No: of live ratings'] + df_last['SUM of No: of mentor ratings'] + df_last['SUM of No: of Course Ratings'] + df_last['SUM of No: of VOD Ratings'] + df_last['SUM of No: Of live record ratings']
+        # Calculate Total Ratings using only rating count columns, summing non-NaN values
+        df_this['Total Ratings'] = df_this[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                                           'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                                           'SUM of No: Of live record ratings']].sum(axis=1, skipna=True)
+        df_last['Total Ratings'] = df_last[['SUM of No: of live ratings', 'SUM of No: of mentor ratings', 
+                                           'SUM of No: of Course Ratings', 'SUM of No: of VOD Ratings', 
+                                           'SUM of No: Of live record ratings']].sum(axis=1, skipna=True)
         if label_col == 'Category' and 'Vertical' in df_this.columns:
             changes = []
             labels = []
@@ -168,7 +172,9 @@ def process_and_generate(vertical_df, category_df, course_df):
                 last = match['Total Ratings'].values[0] if not match.empty else 0
                 change = row['Total Ratings'] - last
                 changes.append(change)
-                labels.append(f"{row['Category']} ({int(row['Total Ratings'])})")
+                # Safely handle NaN (from #DIV/0! in weighted averages) by using 0 for display
+                total_ratings = int(row['Total Ratings']) if not pd.isna(row['Total Ratings']) else 0
+                labels.append(f"{row['Category']} ({total_ratings})")
         else:
             changes = []
             labels = []
@@ -177,7 +183,8 @@ def process_and_generate(vertical_df, category_df, course_df):
                 last = match['Total Ratings'].values[0] if not match.empty else 0
                 change = row['Total Ratings'] - last
                 changes.append(change)
-                labels.append(f"{row[label_col]} ({int(row['Total Ratings'])})")
+                total_ratings = int(row['Total Ratings']) if not pd.isna(row['Total Ratings']) else 0
+                labels.append(f"{row[label_col]} ({total_ratings})")
         colors = ['green' if c >= 0 else 'red' for c in changes]
         sorted_data = sorted(zip(labels, changes, colors), key=lambda x: x[1])
         labels, changes, colors = zip(*sorted_data)
